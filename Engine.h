@@ -53,25 +53,120 @@ struct Engine {
     // Deletes a record logically (marks as deleted and updates indexes)
     // Returns true if deletion succeeded.
     bool deleteById(int id) {
-        //TODO
+        int pos;
+        int cmp = 0;
+
+        // find id
+        if (!idIndex.find(id, pos, cmp))
+            return false;
+
+        if (pos < 0 || pos >= (int)heap.size())
+            return false;
+
+        if (heap[pos].deleted)
+            return false;
+
+        // mark deleted
+        heap[pos].deleted = true;
+
+        // remove from idIndex
+        idIndex.remove(id);
+
+        // remove from lastIndex
+        string key = toLower(heap[pos].last);
+        vector<int> vec;
+
+        if (lastIndex.find(key, vec, cmp)) {
+            vec.erase(remove(vec.begin(), vec.end(), pos), vec.end());
+            if (vec.empty())
+                lastIndex.remove(key);
+            else
+                lastIndex.insert(key, vec);
+        }
+
+        return true;
     }
 
     // Finds a record by student ID.
     // Returns a pointer to the record, or nullptr if not found.
     // Outputs the number of comparisons made in the search.
     const Record *findById(int id, int &cmpOut) {
-        //TODO    }
+        int pos;
+        cmpOut = 0;
+
+        if (!idIndex.find(id, pos, cmpOut))
+            return nullptr;
+
+        if (pos < 0 || pos >= (int)heap.size())
+            return nullptr;
+
+        if (heap[pos].deleted)
+            return nullptr;
+
+        return &heap[pos];
+    }
 
     // Returns all records with ID in the range [lo, hi].
     // Also reports the number of key comparisons performed.
     vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
-        //TODO
+        vector<const Record *> out;
+        cmpOut = 0;
+
+        idIndex.rangeApply(lo, hi,
+            [&](const int &k, int &rid) {
+                cmpOut++;
+                if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted)
+                    out.push_back(&heap[rid]);
+            }
+        );
+
+        return out;
+    }
+
+    // Returns all records with ID in the range [lo, hi].
+    // Also reports the number of key comparisons performed.
+    vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
+        vector<const Record *> out;
+        cmpOut = 0;
+
+        idIndex.rangeApply(lo, hi,
+            [&](const int &k, int &rid) {
+                cmpOut++;
+                if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted)
+                    out.push_back(&heap[rid]);
+            }
+        );
+
+        return out;
     }
 
     // Returns all records whose last name begins with a given prefix.
     // Case-insensitive using lowercase comparison.
     vector<const Record *> prefixByLast(const string &prefix, int &cmpOut) {
-        //TODO
+        vector<const Record *> out;
+        cmpOut = 0;
+        string lowerPrefix = toLower(prefix);
+        string upperBound = lowerPrefix;
+
+        // Increment the last character to find the upper bound
+        if (!upperBound.empty()) {
+            upperBound.back()++;
+        } else {
+            upperBound = string(1, char(127)); // if prefix is empty, use a high value
+        }
+
+        lastIndex.rangeApply(lowerPrefix, upperBound,
+            [&](const string &k, vector<int> &rids) {
+                cmpOut++;
+                for (int rid : rids) {
+                    if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted) {
+                        out.push_back(&heap[rid]);
+                    }
+                }
+            }
+        );
+
+        return out;
     }
 };
 
