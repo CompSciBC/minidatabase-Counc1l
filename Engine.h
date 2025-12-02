@@ -29,22 +29,20 @@ struct Engine {
     int insertRecord(const Record &recIn) {
         Record rec = recIn;
         rec.deleted = false;
+
         heap.push_back(rec);
         int pos = (int)heap.size() - 1;
 
-        // update idIndex to pos
+        // insert into id index
         idIndex.insert(rec.id, pos);
 
-        // update last name index
-        string key = toLower(rec.last);
-        vector<int> positions;
-
-        if (lastIndex.find(key, positions)) {
-            positions.push_back(pos);
-            lastIndex.insert(key, positions);
+        // insert into last name index (lowercase)
+        string lname = toLower(rec.last);
+        vector<int>* vecPtr = lastIndex.find(lname);
+        if (vecPtr) {
+            vecPtr->push_back(pos);
         } else {
-            positions = {pos};
-            lastIndex.insert(key, positions);
+            lastIndex.insert(lname, vector<int>{pos});
         }
 
         return rec.id;
@@ -53,35 +51,30 @@ struct Engine {
     // Deletes a record logically (marks as deleted and updates indexes)
     // Returns true if deletion succeeded.
     bool deleteById(int id) {
-        int pos;
-        int cmp = 0;
+        // lookup id
+        int* posPtr = idIndex.find(id);
+        if (posPtr == nullptr) return false;
 
-        // find id
-        if (!idIndex.find(id, pos, cmp))
-            return false;
-
-        if (pos < 0 || pos >= (int)heap.size())
-            return false;
-
-        if (heap[pos].deleted)
-            return false;
+        int pos = *posPtr;
+        if (pos < 0 || pos >= (int)heap.size()) return false;
+        if (heap[pos].deleted) return false;
 
         // mark deleted
         heap[pos].deleted = true;
 
-        // remove from idIndex
-        idIndex.remove(id);
+        // remove id from idIndex
+        idIndex.erase(id);
 
-        // remove from lastIndex
-        string key = toLower(heap[pos].last);
-        vector<int> vec;
-
-        if (lastIndex.find(key, vec, cmp)) {
-            vec.erase(remove(vec.begin(), vec.end(), pos), vec.end());
-            if (vec.empty())
-                lastIndex.remove(key);
-            else
-                lastIndex.insert(key, vec);
+        // remove position from lastIndex vector; if vector becomes empty, erase the key
+        string lname = toLower(heap[pos].last);
+        vector<int>* vecLast = lastIndex.find(lname);
+        if (vecLast) {
+            // remove all occurrences of pos (should be at most one)
+            vecLast->erase(std::remove(vecLast->begin(), vecLast->end(), pos), vecLast->end());
+            if (vecLast->empty()) {
+                lastIndex.erase(lname);
+            }
+            // else leave updated vector in place
         }
 
         return true;
@@ -91,18 +84,47 @@ struct Engine {
     // Returns a pointer to the record, or nullptr if not found.
     // Outputs the number of comparisons made in the search.
     const Record *findById(int id, int &cmpOut) {
-        int pos;
-        cmpOut = 0;
+        // lookup id
+        int* posPtr = idIndex.find(id);
+        if (posPtr == nullptr) return false;
 
-        if (!idIndex.find(id, pos, cmpOut))
-            return nullptr;
+        int pos = *posPtr;
+        if (pos < 0 || pos >= (int)heap.size()) return false;
+        if (heap[pos].deleted) return false;
 
-        if (pos < 0 || pos >= (int)heap.size())
-            return nullptr;
+        // mark deleted
+        heap[pos].deleted = true;
 
-        if (heap[pos].deleted)
-            return nullptr;
+        // remove id from idIndex
+        idIndex.erase(id);
 
+        // remove position from lastIndex vector; if vector becomes empty, erase the key
+        string lname = toLower(heap[pos].last);
+        vector<int>* vecLast = lastIndex.find(lname);
+        if (vecLast) {
+            // remove all occurrences of pos (should be at most one)
+            vecLast->erase(std::remove(vecLast->begin(), vecLast->end(), pos), vecLast->end());
+            if (vecLast->empty()) {
+                lastIndex.erase(lname);
+            }
+            // else leave updated vector in place
+        }
+
+        return true;
+    }
+
+    // Returns all records with ID in the range [lo, hi].
+    // Also reports the number of key comparisons performed.
+    vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
+        // reset metrics, perform find, read comparisons
+        idIndex.resetMetrics();
+        int* posPtr = idIndex.find(id);
+        cmpOut = idIndex.comparisons;
+
+        if (posPtr == nullptr) return nullptr;
+        int pos = *posPtr;
+        if (pos < 0 || pos >= (int)heap.size()) return nullptr;
+        if (heap[pos].deleted) return nullptr;
         return &heap[pos];
     }
 
@@ -110,33 +132,18 @@ struct Engine {
     // Also reports the number of key comparisons performed.
     vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
         vector<const Record *> out;
-        cmpOut = 0;
+        idIndex.resetMetrics();
 
         idIndex.rangeApply(lo, hi,
             [&](const int &k, int &rid) {
-                cmpOut++;
-                if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted)
+                // Each visited node may have contributed to comparisons inside BST
+                if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted) {
                     out.push_back(&heap[rid]);
+                }
             }
         );
 
-        return out;
-    }
-
-    // Returns all records with ID in the range [lo, hi].
-    // Also reports the number of key comparisons performed.
-    vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
-        vector<const Record *> out;
-        cmpOut = 0;
-
-        idIndex.rangeApply(lo, hi,
-            [&](const int &k, int &rid) {
-                cmpOut++;
-                if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted)
-                    out.push_back(&heap[rid]);
-            }
-        );
-
+        cmpOut = idIndex.comparisons;
         return out;
     }
 
@@ -144,28 +151,26 @@ struct Engine {
     // Case-insensitive using lowercase comparison.
     vector<const Record *> prefixByLast(const string &prefix, int &cmpOut) {
         vector<const Record *> out;
-        cmpOut = 0;
-        string lowerPrefix = toLower(prefix);
-        string upperBound = lowerPrefix;
+        string low = toLower(prefix);
+        string high = low;
+        high.push_back(char(0xFF)); // upper bound for prefix range
 
-        // Increment the last character to find the upper bound
-        if (!upperBound.empty()) {
-            upperBound.back()++;
-        } else {
-            upperBound = string(1, char(127)); // if prefix is empty, use a high value
-        }
+        lastIndex.resetMetrics();
 
-        lastIndex.rangeApply(lowerPrefix, upperBound,
-            [&](const string &k, vector<int> &rids) {
-                cmpOut++;
-                for (int rid : rids) {
-                    if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted) {
-                        out.push_back(&heap[rid]);
+        lastIndex.rangeApply(low, high,
+            [&](const string &lname, vector<int> &positions) {
+                // ensure key actually starts with prefix (defensive)
+                if (lname.rfind(low, 0) != 0) return;
+
+                for (int pos : positions) {
+                    if (pos >= 0 && pos < (int)heap.size() && !heap[pos].deleted) {
+                        out.push_back(&heap[pos]);
                     }
                 }
             }
         );
 
+        cmpOut = lastIndex.comparisons;
         return out;
     }
 };
