@@ -116,21 +116,6 @@ struct Engine {
     // Returns all records with ID in the range [lo, hi].
     // Also reports the number of key comparisons performed.
     vector<const Record*> rangeById(int lo, int hi, int &cmpOut) {
-        // reset metrics, perform find, read comparisons
-        idIndex.resetMetrics();
-        int* posPtr = idIndex.find(id);
-        cmpOut = idIndex.comparisons;
-
-        if (posPtr == nullptr) return nullptr;
-        int pos = *posPtr;
-        if (pos < 0 || pos >= (int)heap.size()) return nullptr;
-        if (heap[pos].deleted) return nullptr;
-        return &heap[pos];
-    }
-
-    // Returns all records with ID in the range [lo, hi].
-    // Also reports the number of key comparisons performed.
-    vector<const Record*> rangeById(int lo, int hi, int &cmpOut) {
         vector<const Record*> out;
         idIndex.resetMetrics();
 
