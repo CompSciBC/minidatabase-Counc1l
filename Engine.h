@@ -115,7 +115,7 @@ struct Engine {
 
     // Returns all records with ID in the range [lo, hi].
     // Also reports the number of key comparisons performed.
-    vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
+    vector<const Record*> rangeById(int lo, int hi, int &cmpOut) {
         // reset metrics, perform find, read comparisons
         idIndex.resetMetrics();
         int* posPtr = idIndex.find(id);
@@ -130,8 +130,8 @@ struct Engine {
 
     // Returns all records with ID in the range [lo, hi].
     // Also reports the number of key comparisons performed.
-    vector<const Record *> rangeById(int lo, int hi, int &cmpOut) {
-        vector<const Record *> out;
+    vector<const Record*> rangeById(int lo, int hi, int &cmpOut) {
+        vector<const Record*> out;
         idIndex.resetMetrics();
 
         idIndex.rangeApply(lo, hi,
@@ -149,8 +149,8 @@ struct Engine {
 
     // Returns all records whose last name begins with a given prefix.
     // Case-insensitive using lowercase comparison.
-    vector<const Record *> prefixByLast(const string &prefix, int &cmpOut) {
-        vector<const Record *> out;
+    vector<const Record*> prefixByLast(const string &prefix, int &cmpOut) {
+        vector<const Record*> out;
         string low = toLower(prefix);
         string high = low;
         high.push_back(char(0xFF)); // upper bound for prefix range
