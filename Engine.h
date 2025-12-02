@@ -34,15 +34,20 @@ struct Engine {
         heap.push_back(rec);
         int pos = (int)heap.size() - 1;
 
+        // updates ID index
         idIndex.insert(rec.id, pos);
 
+        
         string lname = toLower(rec.last);
         vector<int>* vec = lastIndex.find(lname);
-        if (vec)
-            vec->push_back(pos);
-        else
-            lastIndex.insert(lname, vector<int>{pos});
-
+        /*
+        * Appends if name already exists in index, otherwise creates new entry
+        */
+        if (vec) {
+            vec->push_back(pos);    
+        } else {
+            lastIndex.insert(lname, vector<int>{pos}); 
+        }
         return rec.id;
     }
 
@@ -50,22 +55,28 @@ struct Engine {
     // Returns true if deletion succeeded.
     bool deleteById(int id) {
         int* posPtr = idIndex.find(id);
-        if (!posPtr) return false;
+        // id not found
+        if (!posPtr) return false;  
 
         int pos = *posPtr;
         if (pos < 0 || pos >= (int)heap.size()) return false;
-        if (heap[pos].deleted) return false;
+        // already deleted
+        if (heap[pos].deleted) return false;    
 
-        heap[pos].deleted = true;
-
+        // mark as deleted
+        heap[pos].deleted = true;   
+        // remove from indexes
         idIndex.erase(id);
 
         string lname = toLower(heap[pos].last);
         vector<int>* vecLast = lastIndex.find(lname);
         if (vecLast) {
+            // remove position from last name tree
             vecLast->erase(std::remove(vecLast->begin(), vecLast->end(), pos), vecLast->end());
-            if (vecLast->empty())
+            if (vecLast->empty()) {
+                // remove name entry if empty
                 lastIndex.erase(lname);
+            }
         }
 
         return true;
@@ -96,6 +107,7 @@ struct Engine {
 
         idIndex.resetMetrics();
 
+        // lambda called for each ID in range
         idIndex.rangeApply(lo, hi,
             [&](const int &, int &rid) {    // key unused, replaced with &
                 if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted)
@@ -113,12 +125,15 @@ struct Engine {
         vector<const Record*> out;
 
         string low = toLower(prefix);
+        // create high string by appending max char to low
         string high = low + char(0xFF);
 
         lastIndex.resetMetrics();
 
+        // lambda called for each last name in range
         lastIndex.rangeApply(low, high,
-            [&](const string &lname, vector<int> &positions) { // lname and positions used
+            [&](const string &lname, vector<int> &positions) { 
+                // skip if not a prefix match
                 if (lname.rfind(low, 0) != 0) return;
 
                 for (int pos : positions) {
