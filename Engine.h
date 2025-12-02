@@ -3,6 +3,7 @@
 
 #include <iostream>   
 #include <vector>     
+#include <algorithm>
 #include "BST.h"      
 #include "Record.h"
 //add header files as needed
@@ -62,7 +63,7 @@ struct Engine {
         string lname = toLower(heap[pos].last);
         vector<int>* vecLast = lastIndex.find(lname);
         if (vecLast) {
-            vecLast->erase(remove(vecLast->begin(), vecLast->end(), pos), vecLast->end());
+            vecLast->erase(std::remove(vecLast->begin(), vecLast->end(), pos), vecLast->end());
             if (vecLast->empty())
                 lastIndex.erase(lname);
         }
@@ -96,7 +97,7 @@ struct Engine {
         idIndex.resetMetrics();
 
         idIndex.rangeApply(lo, hi,
-            [&](const int &key, int &rid) {
+            [&](const int &, int &rid) {    // key unused, replaced with &
                 if (rid >= 0 && rid < (int)heap.size() && !heap[rid].deleted)
                     out.push_back(&heap[rid]);
             }
@@ -117,7 +118,7 @@ struct Engine {
         lastIndex.resetMetrics();
 
         lastIndex.rangeApply(low, high,
-            [&](const string &lname, vector<int> &positions) {
+            [&](const string &lname, vector<int> &positions) { // lname and positions used
                 if (lname.rfind(low, 0) != 0) return;
 
                 for (int pos : positions) {
@@ -130,7 +131,6 @@ struct Engine {
 
         cmpOut = lastIndex.comparisons;
         return out;
-
     }
 };
 
